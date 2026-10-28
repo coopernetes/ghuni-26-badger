@@ -1,5 +1,5 @@
 import hints
-from badgeware import get_backlight, set_backlight
+from badgeware import State, get_backlight, set_backlight
 
 try:
     import secrets
@@ -86,6 +86,12 @@ def shade(rgb, strength):
     return color.rgb(*(round(channel * strength) for channel in rgb))
 
 
+def load_skip_intro():
+    data = {"on": False}
+    State.load("skip_intro", data)
+    return bool(data["on"])
+
+
 def load_values():
     return {key: str(getattr(secrets, key, "") or "") for key, _, _ in FIELDS}
 
@@ -170,7 +176,8 @@ def fit_tail(text, width, scale):
 
 class SettingsList:
     BACKLIGHT_ROW = len(FIELDS)
-    ROWS = len(FIELDS) + 1
+    SKIP_INTRO_ROW = len(FIELDS) + 1
+    ROWS = len(FIELDS) + 2
 
     def __init__(self, values):
         self.values = values
@@ -178,6 +185,7 @@ class SettingsList:
         self.top_row = 0
         self.saved_at = None
         self.backlight = get_backlight()
+        self.skip_intro = load_skip_intro()
 
     def edited(self, key, value):
         self.values[key] = value
@@ -194,6 +202,9 @@ class SettingsList:
             step = (1 if badge.pressed(BUTTON_RIGHT) else 0) - (1 if badge.pressed(BUTTON_LEFT) else 0)
             if step:
                 self.backlight = set_backlight(self.backlight + step * BACKLIGHT_STEP, save=True)
+        if self.index == self.SKIP_INTRO_ROW and (badge.pressed(BUTTON_SELECT) or badge.pressed(BUTTON_LEFT) or badge.pressed(BUTTON_RIGHT)):
+            self.skip_intro = not self.skip_intro
+            State.save("skip_intro", {"on": self.skip_intro})
         if badge.pressed(BUTTON_BACK):
             reset()
         if badge.pressed(BUTTON_SELECT) and self.index < len(FIELDS):
@@ -215,6 +226,9 @@ class SettingsList:
             if row == self.BACKLIGHT_ROW:
                 self.draw_backlight(top, selected)
                 continue
+            if row == self.SKIP_INTRO_ROW:
+                self.draw_skip_intro(top, selected)
+                continue
 
             key, label, secret = FIELDS[row]
             value = self.values[key]
@@ -232,6 +246,9 @@ class SettingsList:
         draw_ribbon("settings")
         if self.index == self.BACKLIGHT_ROW:
             draw_hint("adjust", (BUTTON_LEFT, BUTTON_RIGHT), WIDTH - TITLE_X)
+            return
+        if self.index == self.SKIP_INTRO_ROW:
+            draw_hint("toggle", (BUTTON_SELECT,), WIDTH - TITLE_X)
             return
         key = FIELDS[self.index][0]
         if self.recently_saved():
@@ -266,6 +283,14 @@ class SettingsList:
         screen.rectangle(bar_left, bar_top, round(BAR_WIDTH * self.backlight / 100), BAR_HEIGHT)
         screen.font = value_font
         screen.text(f"{self.backlight}%", bar_left + BAR_WIDTH + 10, top + 16)
+
+    def draw_skip_intro(self, top, selected):
+        screen.font = caption_font
+        screen.pen = white if selected else dim_white
+        screen.text("Skip Intro", MARGIN + 10, top + 2)
+        screen.font = value_font
+        screen.pen = white
+        screen.text("on" if self.skip_intro else "off", MARGIN + 10, top + 16)
 
     def recently_saved(self):
         return self.saved_at is not None and badge.ticks - self.saved_at < SAVED_MS

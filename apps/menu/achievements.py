@@ -2,7 +2,7 @@ import math
 from array import array
 
 import ui
-from app import BORDER, GAP, GRID_BOTTOM, GRID_LEFT, GRID_TOP, GRID_WIDTH, ICON_SHIFT, ROW_PITCH, TILE, TILE_FILTER, Tile, build_icon, polygon
+from app import BORDER, GAP, draw_label, GRID_BOTTOM, GRID_LEFT, GRID_TOP, GRID_WIDTH, ICON_SHIFT, ROW_PITCH, TILE, TILE_FILTER, Tile, build_icon, polygon
 from icons import ICONS
 from silhouettes import SILHOUETTES
 from badgeware import State
@@ -456,9 +456,6 @@ def draw_compass(left, top, size, tilt, selected, scale, needle_angle):
 
 
 class AchievementsTile(Tile):
-    columns = 2
-    rows = 2
-
     def __init__(self, achievements):
         self.achievements = achievements
         self.name = TITLE
@@ -479,35 +476,37 @@ class AchievementsTile(Tile):
 
     def draw(self, scroll, tilt, selected, scale=1.0):
         if scale <= 0:
-            return
+            return False
         left, top, width, height = self.bounds(scroll)
-        centre_x = left + width / 2
-        centre_y = top + height / 2
-        size = width * scale
-        left = centre_x - size / 2
-        top = centre_y - size / 2
-        if not self.clip(left, top, size, size):
-            return
+        if not self.clip(left, top, width, height):
+            return False
+
+        screen.pen = ui.white if selected else locked_fill
+        screen.rectangle(left, top, width, height)
+        screen.pen = ui.shade(ui.PALETTE[1], 0.62 if selected else 0.22)
+        screen.rectangle(left + BORDER, top + BORDER, width - BORDER * 2, height - BORDER * 2)
 
         achievements = self.achievements
         shown = achievements.shown
+        icon = height - BORDER * 2
         if shown is None:
             self.swing_needle(tilt)
-            draw_compass(left, top, size, tilt, selected, scale, self.needle_angle)
+            draw_compass(left + BORDER, top + BORDER, icon, tilt, False, 1.0, self.needle_angle)
         else:
-            draw_achievement(shown, True, left, top, size, tilt, selected, scale)
-
-        if achievements.detecting() is not None:
-            draw_echo(left + size - ECHO_INSET * scale, top + ECHO_TOP_INSET * scale, scale)
+            draw_achievement(shown, True, left + BORDER, top + BORDER, icon, tilt, False)
+        draw_label(self.name, left + height + 8, top, height)
 
         unlocked, count = self.count
         if unlocked != len(achievements.unlocked):
             unlocked = len(achievements.unlocked)
             count = f"{unlocked} / {len(achievements.visible())}"
             self.count = (unlocked, count)
-        screen.font = ui.status_font
-        screen.pen = ui.dim_white
-        screen.text(count, left + 8 * scale, top + size - 22 * scale)
+        count_width, _ = screen.measure_text(count)
+        draw_label(count, left + width - count_width - 10, top, height)
+
+        if achievements.detecting() is not None:
+            draw_echo(left + width - count_width - 18, top + 1, 0.8)
+        return True
 
 
 class Picker:

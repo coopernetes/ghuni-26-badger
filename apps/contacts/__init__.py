@@ -1,3 +1,4 @@
+import gc
 import json
 
 import hints
@@ -17,6 +18,8 @@ screen.antialias = image.X2
 GAME = "contacts"
 STATE_KEY = "contacts"
 BADGE_USER_FILE = "/state/badge_user.json"
+BADGE_AVATAR_FILE = "/state/badge_avatar.png"
+AVATAR_SIZE = 55
 
 OFFER_MS = 15000
 SWAP_MS = 8000
@@ -93,6 +96,19 @@ def badge_user_name():
         return str(data.get("name") or data.get("login") or "")
     except (OSError, ValueError):
         return ""
+
+
+def load_avatar():
+    # the Badge app caches the GitHub profile picture; shrink it once so the big copy can go
+    try:
+        full = image.load(BADGE_AVATAR_FILE)
+    except Exception:  # noqa: BLE001
+        return None
+    small = image(AVATAR_SIZE, AVATAR_SIZE)
+    small.blit(full, rect(0, 0, AVATAR_SIZE, AVATAR_SIZE), image.BILINEAR)
+    del full
+    gc.collect()
+    return small
 
 
 def my_card(fallback_name):
@@ -448,7 +464,10 @@ class Contacts:
 
     def draw_my_card(self, top):
         draw_tile(MARGIN, top, WIDTH - MARGIN * 2, CARD_HEIGHT, PALETTE[0], False)
-        badgelink.draw_identicon(screen, self.link.id, MARGIN + 8, top + 8, 55)
+        if avatar is not None:
+            screen.blit(avatar, rect(MARGIN + 8, top + 8, AVATAR_SIZE, AVATAR_SIZE))
+        else:
+            badgelink.draw_identicon(screen, self.link.id, MARGIN + 8, top + 8, AVATAR_SIZE)
         screen.font = title_font
         screen.pen = white
         screen.text(fit(self.card["name"], WIDTH - 90), MARGIN + 72, top + 6)
@@ -558,6 +577,7 @@ class Contacts:
             draw_hints(("back", (BUTTON_LEFT,)))
 
 
+avatar = load_avatar()
 app = Contacts()
 
 

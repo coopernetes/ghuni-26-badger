@@ -16,6 +16,7 @@ from app import shared as shared_apps
 from achievements import draw_marquee
 from celebration import Celebration
 from gallery import Viewer, prefetch
+from banner import Banner
 from opening import Opening, after_cold_boot
 
 try:
@@ -35,6 +36,7 @@ screen.fill_rule = image.NON_ZERO
 apps = shared_apps("/system/apps")
 apps.achievements.listen()
 tilt = ui.Tilt()
+banner = Banner()
 opening = Opening(apps) if after_cold_boot() else None
 
 FADE_STEP = 30
@@ -57,6 +59,14 @@ def restore():
     badge.mode(LORES | VSYNC)
 
 
+def descend():
+    active = apps.active
+    if active.children is not None:
+        apps.enter(active)
+    elif active is apps.achievements_tile:
+        apps.open_picker()
+
+
 def update():
     global fade, opening, viewer, celebration
 
@@ -68,6 +78,7 @@ def update():
             opening = None
 
     if apps.achievements.pending is not None:
+        apps.leave()
         viewer = None
         if apps.picker is not None:
             apps.picker.close()
@@ -98,17 +109,20 @@ def update():
             picker.close()
     else:
         if badge.pressed(BUTTON_RIGHT):
-            apps.move(1)
+            descend()
         if badge.pressed(BUTTON_LEFT):
-            apps.move(-1)
+            apps.leave()
         if badge.pressed(BUTTON_DOWN):
             apps.move_vertical(1)
         if badge.pressed(BUTTON_UP):
             apps.move_vertical(-1)
 
+        if badge.pressed(BUTTON_BACK):
+            apps.leave()
+
         if badge.pressed(BUTTON_SELECT):
-            if apps.active is apps.achievements_tile:
-                apps.open_picker()
+            if apps.active.children is not None or apps.active is apps.achievements_tile:
+                descend()
             elif apps.active.path is None:
                 viewer = Viewer(apps.active, apps.scroll, tilt)
             else:
@@ -116,7 +130,7 @@ def update():
                 return apps.active.path
 
     active = apps.active
-    if viewer is None and celebration is None and active.path is None and active is not apps.achievements_tile:
+    if viewer is None and celebration is None and active.path is None and active.children is None and active is not apps.achievements_tile:
         prefetch(active.slug, apps.changed_at)
     if opening is None and viewer is None and celebration is None:
         apps.load_photos(badge.ticks - apps.changed_at >= IDLE_MS)
@@ -147,7 +161,7 @@ def update():
 
     tilt.update()
     apps.draw(tilt, opening, viewer.target() if viewer is not None else None)
-    ui.draw_status(apps.active_index, len(apps), ribbon_hidden)
+    banner.draw(apps, ribbon_hidden)
     message = picker.message() if picker is not None and picker.is_open else None
     if message is not None:
         draw_marquee(*message)

@@ -7,7 +7,13 @@ import ui
 from gallery import GALLERY, crop, load_photo, tile_path
 from icons import ICONS
 
-TILES_PER_ROW = 4
+ICONS.setdefault("machine_stats", (
+    (-0.34, 0.34, -0.34, 0.0, -0.16, 0.0, -0.16, 0.34),
+    (-0.09, 0.34, -0.09, -0.34, 0.09, -0.34, 0.09, 0.34),
+    (0.16, 0.34, 0.16, -0.15, 0.34, -0.15, 0.34, 0.34),
+))
+
+TILES_PER_ROW = 1
 
 APP_ORDER = (
     "badge",
@@ -27,13 +33,24 @@ APP_ORDER = (
     "show",
 )
 
+FOLDERS = (
+    ("Con Tools", ("badge", "contacts", "mass_storage", "settings", "machine_stats"), "con_tools"),
+    ("Games", ("flappy_mona", "snake", "mona_pet", "rogue", "merge_conflict", "brattal", "pong"), "games"),
+    ("Graphics", ("show", "life", "mona_paint", "iss"), "graphics"),
+)
+
+FOLDER_ICON = (-0.42, -0.3, -0.1, -0.3, -0.02, -0.2, 0.42, -0.2, 0.42, 0.32, -0.42, 0.32)
+
+BANNER_HEIGHT = 34
 GAP = 4
 GRID_WIDTH = 312
-TILE = (GRID_WIDTH - (TILES_PER_ROW - 1) * GAP) // TILES_PER_ROW
-GRID_LEFT = (320 - (TILES_PER_ROW * TILE + (TILES_PER_ROW - 1) * GAP)) // 2
-GRID_TOP = ui.STATUS_HEIGHT + 2
+TILE = (GRID_WIDTH - 3 * GAP) // 4
+GRID_LEFT = (320 - GRID_WIDTH) // 2
+GRID_TOP = BANNER_HEIGHT + 2
 GRID_BOTTOM = ui.RIBBON_TOP
-ROW_PITCH = TILE + GAP
+ROW_HEIGHT = 28
+ROW_ICON = 32
+ROW_PITCH = ROW_HEIGHT + GAP
 VISIBLE_ROWS = max(1, (GRID_BOTTOM - GRID_TOP + GAP) // ROW_PITCH)
 
 DESIGN_TILE = 75
@@ -52,6 +69,8 @@ HIGH_STRENGTH = 0.62
 HALF = TILE / 2
 DESIGN_HALF = DESIGN_TILE / 2
 
+ICON_DIR = "/system/apps/menu/icons"
+PICTURE_SIZE = 26
 ANIMATION_DIR = "/system/apps/menu/anim"
 ANIMATION_MAGIC = b"BWIC"
 ANIMATION_VERSION = 3
@@ -104,6 +123,14 @@ def build_icon(contours):
     return shape.custom(*(array("f", values) for values in contours))
 
 
+def load_picture(name):
+    # a png in ICON_DIR replaces the built-in vector icon for that app or folder
+    try:
+        return image.load(f"{ICON_DIR}/{name}.png")
+    except OSError:
+        return None
+
+
 def animated_slugs():
     try:
         return {name[:-4] for name in os.listdir(ANIMATION_DIR) if name.endswith(".bin")}
@@ -148,6 +175,13 @@ def load_animation(slug):
     return Animation(file, fps, offsets)
 
 
+def draw_label(text, x, top, height):
+    screen.font = ui.title_font
+    screen.pen = ui.white
+    _, text_height = screen.measure_text(text)
+    screen.text(text, x, top + (height - text_height) / 2)
+
+
 class Tile:
     columns = 1
     rows = 1
@@ -155,11 +189,12 @@ class Tile:
     column = 0
     row = 0
     drop = 0
+    children = None
 
     def place(self):
-        self.width = self.columns * TILE + (self.columns - 1) * GAP
-        self.height = self.rows * TILE + (self.rows - 1) * GAP
-        self.left = GRID_LEFT + self.column * (TILE + GAP)
+        self.width = GRID_WIDTH
+        self.height = ROW_HEIGHT
+        self.left = GRID_LEFT
         self.top = GRID_TOP + self.row * ROW_PITCH
 
     def bounds(self, scroll):
@@ -176,11 +211,12 @@ class Tile:
 
 
 class App(Tile):
-    def __init__(self, ordinal, name, slug, path, animated=False):
+    def __init__(self, ordinal, name, slug, path, animated=False, icon=None):
         self.name = name
         self.slug = slug
         self.path = path
-        self.animated = animated
+        self.picture = load_picture(icon or slug)
+        self.animated = animated and self.picture is None
         self.rgb = ui.PALETTE[ordinal % len(ui.PALETTE)]
         self.base = ui.shade(self.rgb, BASE_STRENGTH)
         self.tones = {
@@ -214,44 +250,45 @@ class App(Tile):
 
     def draw(self, scroll, tilt, selected, scale=1.0):
         if scale <= 0:
-            return
-        left, top, _, _ = self.bounds(scroll)
-        centre_x = left + HALF
-        centre_y = top + HALF
-        size = TILE * scale
-        left = centre_x - size / 2
-        top = centre_y - size / 2
-        if not self.clip(left, top, size, size):
-            return
+            return False
+        left, top, width, height = self.bounds(scroll)
+        if not self.clip(left, top, width, height):
+            return False
 
         if selected:
-            border = BORDER * scale
             screen.pen = ui.white
-            screen.rectangle(left, top, size, size)
+            screen.rectangle(left, top, width, height)
             screen.pen = self.solid
-            screen.rectangle(left + border, top + border, size - border * 2, size - border * 2)
+            screen.rectangle(left + BORDER, top + BORDER, width - BORDER * 2, height - BORDER * 2)
         else:
             screen.pen = self.base
-            screen.rectangle(left, top, size, size)
-            transform = mat3().translate(
-                centre_x - tilt.x * BACKGROUND_SHIFT,
-                centre_y - tilt.y * BACKGROUND_SHIFT,
-            ).scale(scale * DESIGN_SCALE)
-            antialias = screen.antialias
-            screen.antialias = image.OFF
-            for tone, element in self.pattern:
-                element.transform = transform
-                screen.pen = self.tones[tone]
-                screen.shape(element)
-            screen.antialias = antialias
+            screen.rectangle(left, top, width, height)
 
-        icon = self.current_icon(selected)
-        icon.transform = mat3().translate(
-            centre_x + tilt.x * ICON_SHIFT,
-            centre_y + tilt.y * ICON_SHIFT,
-        ).scale(ICON_SIZE * scale)
-        screen.pen = ui.white
-        screen.shape(icon)
+        if self.picture is not None:
+            screen.blit(self.picture, rect(left + 2 + (height - PICTURE_SIZE) / 2, top + (height - PICTURE_SIZE) / 2, PICTURE_SIZE, PICTURE_SIZE), TILE_FILTER)
+        else:
+            icon = self.current_icon(selected)
+            icon.transform = mat3().translate(left + height / 2 + 2, top + height / 2).scale(ROW_ICON)
+            screen.pen = ui.white
+            screen.shape(icon)
+        draw_label(self.name, left + height + 8, top, height)
+        return True
+
+
+class Folder(App):
+    def __init__(self, ordinal, name, children, icon):
+        super().__init__(ordinal, name, "folder", None, False, icon)
+        self.icon = build_icon((FOLDER_ICON,))
+        self.children = children
+
+    def draw(self, scroll, tilt, selected, scale=1.0):
+        if not super().draw(scroll, tilt, selected, scale):
+            return False
+        left, top, width, height = self.bounds(scroll)
+        label = f"{len(self.children)}  >"
+        label_width, _ = screen.measure_text(label)
+        draw_label(label, left + width - label_width - 10, top, height)
+        return True
 
 
 class Photo(Tile):
@@ -315,7 +352,7 @@ class Apps:
 
         animated = animated_slugs()
         folders = [entry[0] for entry in os.ilistdir(root) if entry[1] == 0x4000]
-        tiles = []
+        specs = {}
         for slug in sorted(folders, key=order):
             path = f"{root}/{slug}"
             if slug == "menu":
@@ -324,7 +361,19 @@ class Apps:
                 continue
             name = " ".join([capitalize(word) for word in slug.split("_")])
             icon_key = slug if slug in ICONS else "default"
-            tiles.append(App(len(tiles), name, slug, path, icon_key in animated))
+            specs[slug] = (name, slug, path, icon_key in animated)
+
+        tiles = []
+        grouped = set()
+        for title, slugs, icon in FOLDERS:
+            slugs = [slug for slug in slugs if slug in specs]
+            if slugs:
+                members = self.pack([App(ordinal, *specs[slug]) for ordinal, slug in enumerate(slugs)])
+                tiles.append(Folder(len(tiles), title, members, icon))
+                grouped.update(slugs)
+        for slug in specs:
+            if slug not in grouped:
+                tiles.append(App(len(tiles), *specs[slug]))
 
         from achievements import POSITION, Achievements, AchievementsTile
         self.achievements = Achievements()
@@ -332,20 +381,35 @@ class Apps:
         self.picker = None
         tiles.insert(min(POSITION, len(tiles)), self.achievements_tile)
 
-        for name, columns, rows, position, frame in GALLERY:
-            if file_exists(tile_path(name)):
-                tiles.insert(min(position, len(tiles)), Photo(name, columns, rows, frame))
-
         self.apps = self.pack(tiles)
         boundary = self.achievements_tile.row + self.achievements_tile.rows
         # (tile, first row, row after its last, below the picker) for the draw loop
         self.layout = [(tile, tile.row, tile.row + tile.rows, tile.row >= boundary) for tile in self.apps]
         self.want_column = 0
         self.want_row = 0
-        self.photos = [tile for tile in self.apps if isinstance(tile, Photo)]
-        for photo in self.photos:
-            if photo.row <= VISIBLE_ROWS:
-                photo.load()
+        self.folder = None
+        self.parent = None
+        self.photos = []
+
+    def enter(self, folder):
+        self.parent = (self.apps, self.layout, self.active_index, self.scroll, self.target, self.want_column, self.want_row)
+        self.folder = folder
+        self.apps = folder.children
+        self.layout = [(tile, tile.row, tile.row + tile.rows, False) for tile in self.apps]
+        self.active_index = 0
+        self.scroll = 0.0
+        self.target = 0
+        self.want_column = 0
+        self.want_row = 0
+        self.changed_at = badge.ticks
+
+    def leave(self):
+        if self.folder is None:
+            return
+        self.apps, self.layout, self.active_index, self.scroll, self.target, self.want_column, self.want_row = self.parent
+        self.folder = None
+        self.parent = None
+        self.changed_at = badge.ticks
 
     def preload_images(self):
         for photo in self.photos:
