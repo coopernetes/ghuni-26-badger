@@ -34,9 +34,10 @@ APP_ORDER = (
 )
 
 FOLDERS = (
-    ("Con Tools", ("badge", "contacts", "mass_storage", "settings", "machine_stats"), "con_tools"),
-    ("Games", ("flappy_mona", "snake", "mona_pet", "rogue", "merge_conflict", "brattal", "pong"), "games"),
-    ("Graphics", ("show", "life", "mona_paint", "iss"), "graphics"),
+    ("Con Tools", ("badge", "contacts", "mass_storage", "settings"), "con_tools", False),
+    ("Games", ("flappy_mona", "snake", "mona_pet", "rogue", "merge_conflict", "brattal", "pong"), "games", False),
+    ("Apps", ("iss", "mona_paint", "machine_stats"), "apps", False),
+    ("Graphics", ("show", "life"), "graphics", True),
 )
 
 FOLDER_ICON = (-0.42, -0.3, -0.1, -0.3, -0.02, -0.2, 0.42, -0.2, 0.42, 0.32, -0.42, 0.32)
@@ -292,45 +293,51 @@ class Folder(App):
 
 
 class Photo(Tile):
-    def __init__(self, name, columns, rows, frame=None):
-        self.name = name.replace("-", " ")
+    def __init__(self, ordinal, name, frame=None):
+        self.name = " ".join(word.capitalize() for word in name.split("-"))
         self.slug = name
         self.path = None
-        self.columns = columns
-        self.rows = rows
         self.frame = frame
         self.image = None
+        rgb = ui.PALETTE[ordinal % len(ui.PALETTE)]
+        self.base = ui.shade(rgb, BASE_STRENGTH)
+        self.solid = color.rgb(*rgb)
 
     def load(self):
         if self.image is None:
             self.image = load_photo(self.slug)
         return self.image is not None
 
+    def thumbnail(self, left, top, height):
+        return left + 2 + (height - PICTURE_SIZE) / 2, top + (height - PICTURE_SIZE) / 2
+
+    def viewer_start(self, scroll):
+        # the viewer grows the photo out of its thumbnail rather than out of the whole row
+        left, top, _, height = self.bounds(scroll)
+        x, y = self.thumbnail(left, top, height)
+        return x, y, PICTURE_SIZE, PICTURE_SIZE
+
     def draw(self, scroll, tilt, selected, scale=1.0):
         if scale <= 0:
-            return
-        _, top, _, height = self.bounds(scroll)
-        if top + height < GRID_TOP or top > GRID_BOTTOM or not self.load():
-            return
+            return False
         left, top, width, height = self.bounds(scroll)
-        centre_x = left + width / 2
-        centre_y = top + height / 2
-        width *= scale
-        height *= scale
-        left = centre_x - width / 2
-        top = centre_y - height / 2
         if not self.clip(left, top, width, height):
-            return
+            return False
 
-        source = crop(self.image, width / scale, height / scale, tilt)
-        screen.blit(self.image, source, rect(left, top, width, height), TILE_FILTER)
         if selected:
-            border = BORDER * scale
             screen.pen = ui.white
-            screen.rectangle(left, top, width, border)
-            screen.rectangle(left, top + height - border, width, border)
-            screen.rectangle(left, top + border, border, height - border * 2)
-            screen.rectangle(left + width - border, top + border, border, height - border * 2)
+            screen.rectangle(left, top, width, height)
+            screen.pen = self.solid
+            screen.rectangle(left + BORDER, top + BORDER, width - BORDER * 2, height - BORDER * 2)
+        else:
+            screen.pen = self.base
+            screen.rectangle(left, top, width, height)
+
+        if self.load():
+            x, y = self.thumbnail(left, top, height)
+            screen.blit(self.image, crop(self.image, PICTURE_SIZE, PICTURE_SIZE, tilt), rect(x, y, PICTURE_SIZE, PICTURE_SIZE), TILE_FILTER)
+        draw_label(self.name, left + height + 8, top, height)
+        return True
 
 
 class Apps:
@@ -365,11 +372,15 @@ class Apps:
 
         tiles = []
         grouped = set()
-        for title, slugs, icon in FOLDERS:
+        for title, slugs, icon, with_photos in FOLDERS:
             slugs = [slug for slug in slugs if slug in specs]
-            if slugs:
-                members = self.pack([App(ordinal, *specs[slug]) for ordinal, slug in enumerate(slugs)])
-                tiles.append(Folder(len(tiles), title, members, icon))
+            members = [App(ordinal, *specs[slug]) for ordinal, slug in enumerate(slugs)]
+            if with_photos:
+                for name, _, _, _, frame in GALLERY:
+                    if file_exists(tile_path(name)):
+                        members.append(Photo(len(members), name, frame))
+            if members:
+                tiles.append(Folder(len(tiles), title, self.pack(members), icon))
                 grouped.update(slugs)
         for slug in specs:
             if slug not in grouped:

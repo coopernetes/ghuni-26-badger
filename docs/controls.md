@@ -43,6 +43,11 @@ Which round button (gold or white) is Select and which is Back is not confirmed.
 
 The touch controller is not reachable when the laminated badge card is attached over the SoC, which is why the SoC buttons also get their own shortcuts.
 
+The browser simulator's help text (see [`badger-site/simulator.md`](badger-site/simulator.md)) gives the same layout from the other side:
+arrow keys move, Space or Enter select, Escape is Home. For a gamepad it maps WASD to the d-pad, `J` to select, `K` to go back
+and `U` to Menu. That matches `BUTTON_SELECT`, `BUTTON_BACK` and `BUTTON_MENU` above. The about page also lists "five front-facing
+buttons" and "8 capacitive touch sensors", which agrees with the five SoC buttons and the eight touch channels.
+
 ## Main menu
 
 | Input | Action |

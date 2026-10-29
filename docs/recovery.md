@@ -43,9 +43,11 @@ You need the repo's `.venv` with `mpremote` (`python3 -m venv .venv && .venv/bin
 
 If you only need to undo everything, copy `original-files/` back over the drive (leave `secrets.py` alone, since it is not tracked and holds your WiFi details).
 
-### If the serial port is unreachable (unverified)
+### If the serial port is unreachable
 
-`apps/mass_storage` says disk mode is entered through the firmware's "double-tap" wake path, so double-tapping the reset button on the back may mount the drive without any REPL. Treat this as a guess until it has been tried.
+The badge's own documentation (the simulator page, saved in [`badger-site/simulator.md`](badger-site/simulator.md)) says to quickly
+press RESET twice to get USB Disk Mode, then wait for the BADGER drive. That should mount the drive even when the menu will not
+start. I read this on the site but did not try it, because the serial route worked.
 
 ## Cause of the incident this was written for
 

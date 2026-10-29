@@ -69,7 +69,7 @@ def mix(start, end, amount):
 class Viewer:
     def __init__(self, photo, scroll, tilt):
         self.photo = photo
-        self.start = photo.bounds(scroll)
+        self.start = photo.viewer_start(scroll)
         full = load_full(photo.slug)
         if full is None:
             photo.load()
