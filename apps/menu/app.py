@@ -69,7 +69,7 @@ HIGH_STRENGTH = 0.62
 HALF = TILE / 2
 DESIGN_HALF = DESIGN_TILE / 2
 
-ICON_DIR = "/system/apps/menu/icons"
+PICTURE_DIR = "/system/apps/menu/pictures"
 PICTURE_SIZE = 26
 ANIMATION_DIR = "/system/apps/menu/anim"
 ANIMATION_MAGIC = b"BWIC"
@@ -124,9 +124,9 @@ def build_icon(contours):
 
 
 def load_picture(name):
-    # a png in ICON_DIR replaces the built-in vector icon for that app or folder
+    # a png in PICTURE_DIR replaces the built-in vector icon for that app or folder
     try:
-        return image.load(f"{ICON_DIR}/{name}.png")
+        return image.load(f"{PICTURE_DIR}/{name}.png")
     except OSError:
         return None
 

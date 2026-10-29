@@ -1,5 +1,5 @@
 """
-Build the custom menu icons in apps/menu/icons from the artwork in assets/custom.
+Build the custom menu icons in apps/menu/pictures from the artwork in assets/custom.
 
 Run from the repo root with Pillow installed:  python3 -I tools/make_icons.py
 
@@ -11,7 +11,7 @@ on transparent, the same way the menu's built-in icons are drawn.
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 SOURCE = "assets/custom"
-OUTPUT = "apps/menu/icons"
+OUTPUT = "apps/menu/pictures"
 SIZE = 56
 
 THUMBNAILS = {
