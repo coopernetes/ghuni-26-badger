@@ -176,6 +176,12 @@ def load_animation(slug):
     return Animation(file, fps, offsets)
 
 
+def capitalize(word):
+    if len(word) <= 1:
+        return word
+    return word[0].upper() + word[1:]
+
+
 def draw_label(text, x, top, height):
     screen.font = ui.title_font
     screen.pen = ui.white
@@ -294,7 +300,7 @@ class Folder(App):
 
 class Photo(Tile):
     def __init__(self, ordinal, name, frame=None):
-        self.name = " ".join(word.capitalize() for word in name.split("-"))
+        self.name = " ".join([capitalize(word) for word in name.split("-")])
         self.slug = name
         self.path = None
         self.frame = frame
@@ -348,11 +354,6 @@ class Apps:
         self.scroll = 0.0
         self.target = 0
         self.last_ticks = None
-
-        def capitalize(word):
-            if len(word) <= 1:
-                return word
-            return word[0].upper() + word[1:]
 
         def order(slug):
             return (APP_ORDER.index(slug) if slug in APP_ORDER else len(APP_ORDER), slug)
